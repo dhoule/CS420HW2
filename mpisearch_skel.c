@@ -26,10 +26,10 @@ int main(int argc, char *argv[]) {
   if (0 == myrank) {
     
     // Create an array of random integers for test purpose
-    int *search_array = (int *) malloc(SIZE * sizeof(int));
-    for (int i = 0;i < SIZE;i++) {
-      search_array[i] = OFFSET + rand() % RANGE;
-    }
+    // int *search_array = (int *) malloc(SIZE * sizeof(int));
+    // for (int i = 0;i < SIZE;i++) {
+    //   search_array[i] = OFFSET + rand() % RANGE;
+    // }
 
     // Now create an array of search queries
     int *query_vector = (int *) malloc(QUERY_SIZE * sizeof(int));
@@ -42,6 +42,13 @@ int main(int argc, char *argv[]) {
     /* YOUR MASTER CODE GOES FROM HERE */
   
     // 1: Master broadcasts query list to all the slave nodes(MPI_Isend())
+    MPI_Request *send_request = (MPI_Request *) malloc((np - 1)* sizeof(MPI_Request));
+    for(int i = 1; i < np; i++){
+      MPI_Isend(query_vector, QUERY_SIZE, MPI_INT, i, QUERY_MSG_TAG, comm, &send_request[i-1]);
+      printf("\nSent query_vector to node %d.\n", i);
+    }
+    printf("\nFinished sending query_vector to all nodes.\n");
+    fflush(stdout);
     // 2: Master then issues ‘n’ non-blocking receive calls and waits for an ACK message from each slave
       //  to indicate that it has received the query list using MPI_Waitall()
     // 3: On receiving all ACKS from the slave nodes, the master then sends to each slave (using non-
@@ -54,7 +61,22 @@ int main(int argc, char *argv[]) {
 
   } else {
     /* YOUR SLAVE CODE GOES FROM HERE */
+    printf("\n[Proc #%d] - \n", myrank);
+    fflush(stdout);
+    MPI_Status status;
+    MPI_Request request;
+    int recv_size;
+    int *recv_query = (int *) malloc(QUERY_SIZE * sizeof(int));
 
+    MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &status);
+    MPI_Get_count(&status, MPI_INT, &recv_size);
+    MPI_Irecv(recv_query, recv_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
+    MPI_Wait(&request, &status);
+    
+    for(int i = 0; i < recv_size; i++) {
+      printf("%d",recv_query[i]);
+    }
+    fflush(stdout);
     // 1: Each slave sends using a blocking MPI send, ONLY the list of integers from the query list that 
       // it finds in the chunk received from the master.
 
