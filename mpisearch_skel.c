@@ -49,6 +49,13 @@ int main(int argc, char *argv[]) {
     }
     printf("\nFinished sending query_vector to all nodes.\n");
     fflush(stdout);
+
+    printf("\nMaster node waiting for all ACK msgs.\n");
+    fflush(stdout);
+    MPI_Status *status_list = (MPI_Status *) malloc(sizeof(MPI_Status) * (np - 1));
+    MPI_Waitall(np - 1,send_request, status_list);
+    printf("\nMaster node received all ACK msgs.\n");
+    fflush(stdout);
     // 2: Master then issues ‘n’ non-blocking receive calls and waits for an ACK message from each slave
       //  to indicate that it has received the query list using MPI_Waitall()
     // 3: On receiving all ACKS from the slave nodes, the master then sends to each slave (using non-
@@ -73,6 +80,11 @@ int main(int argc, char *argv[]) {
     MPI_Irecv(recv_query, recv_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
     MPI_Wait(&request, &status);
 
+    // The current slave has received the `query_vector` from the master node. Need to return ACK msg.
+    int ack = ACK;
+    MPI_Isend(&ack, 1, MPI_INT, status.MPI_SOURCE, ACK_MSG_TAG, comm, &request);
+    printf("\n[Proc #%d] - Sent ACK msg to node %d.\n", myrank, status.MPI_SOURCE);
+    fflush(stdout);
     
     // 1: Each slave sends using a blocking MPI send, ONLY the list of integers from the query list that 
       // it finds in the chunk received from the master.
