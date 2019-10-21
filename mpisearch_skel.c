@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
 
   } else {
     /* YOUR SLAVE CODE GOES FROM HERE */
-    printf("\n[Proc #%d] - \n", myrank);
+    printf("\n[Proc #%d] - Starting to work.\n", myrank);
     fflush(stdout);
     MPI_Status status;
     MPI_Request request;
@@ -72,11 +72,8 @@ int main(int argc, char *argv[]) {
     MPI_Get_count(&status, MPI_INT, &recv_size);
     MPI_Irecv(recv_query, recv_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
     MPI_Wait(&request, &status);
+
     
-    for(int i = 0; i < recv_size; i++) {
-      printf("%d",recv_query[i]);
-    }
-    fflush(stdout);
     // 1: Each slave sends using a blocking MPI send, ONLY the list of integers from the query list that 
       // it finds in the chunk received from the master.
 
