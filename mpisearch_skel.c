@@ -34,13 +34,16 @@ int main(int argc, char *argv[]) {
 
   if (0 == myrank) {
     // Create an array of random integers for test purpose
-    int *search_array = (int *) malloc(SIZE * sizeof(int));
+    // int *search_array = (int *) malloc(SIZE * sizeof(int));
+    int *search_array = (int *) calloc(SIZE, sizeof(int));
     for (int i = 0; i < SIZE; i++) {
       search_array[i] = OFFSET + rand() % RANGE;
     }
+    fflush(stdout);
 
     //Now create an array of search queries
-    int *query_vector = (int *) malloc(QUERY_SIZE * sizeof(int));
+    // int *query_vector = (int *) malloc(QUERY_SIZE * sizeof(int));
+    int *query_vector = (int *) calloc(QUERY_SIZE, sizeof(int));
     for (int i = 0; i < QUERY_SIZE; i++) {
       query_vector[i] = OFFSET + rand() % RANGE;
     }
@@ -51,7 +54,7 @@ int main(int argc, char *argv[]) {
     MPI_Request *send_request = (MPI_Request *) malloc((np - 1)* sizeof(MPI_Request));
     for (int i = 1; i < np; i++) {
       MPI_Isend(query_vector, QUERY_SIZE, MPI_INT, i, QUERY_MSG_TAG, comm, &send_request[i - 1]);
-      printf("\nSent query_vector to node %d.\n", i);
+      printf("\n[%d] sent query_vector to node %d.\n", myrank,i);
       fflush(stdout);
     }
     printf("\nFinished sending query_vector to all nodes.\n");
@@ -77,33 +80,28 @@ int main(int argc, char *argv[]) {
       start_index = (i - 1) * size;
       end_index = ((start_index + size) - 1);
       int *temp = slice_array(search_array, start_index, end_index);
-      printf("\n*****************\t%d\n",i);
-      for(int q = 0; q < size; q++) {
-        printf("%d",temp[q]);
-      }
-      printf("\n*****************\n");
       MPI_Isend(temp, size, MPI_INT, i, QUERY_MSG_TAG, comm, &send_request[i - 1]);
-      printf("\nSent search_array chunk to node %d.\n", i);
+      printf("\n[%d] sent search_array chunk of size %d to node %d.\n", myrank,size,i);
       fflush(stdout);
-      free(temp);
     }
     start_index = (i - 1) * size;
-    end_index = (sizeof(search_array) - 1);
+    end_index = SIZE;
     int *temp = slice_array(search_array, start_index, end_index);
-    printf("\n*****************\toutside\t%d\n",i);
-    for(int q = 0; q < size; q++) {
-      printf("%d",temp[q]);
-    }
-    printf("\n*****************\n");
-    MPI_Isend(temp, size, MPI_INT, i, QUERY_MSG_TAG, comm, &send_request[i - 1]);
-    printf("\nSent search_array chunk to node %d.\n", i);
+    MPI_Isend(temp, (end_index - start_index), MPI_INT, i, QUERY_MSG_TAG, comm, &send_request[i - 1]);
+    printf("\n[%d] sent search_array chunk of size %d to node %d.\n", myrank,(end_index - start_index),i);
     fflush(stdout);
-    free(temp);
 
+    int *index = (int *) malloc((np - 1) * sizeof(int));
+    MPI_Waitany(np - 1, send_request, index, status_list);
+    free(temp);
     printf("\nFinished sending search_array chunks to all nodes.\n");
     fflush(stdout);
 
-
+    free(search_array);
+    // free(query_vector);
+    free(send_request);
+    free(status_list);
+    free(index);
   } else {
     printf("\n[Proc #%d] - Starting to work.\n", myrank);
     fflush(stdout);
@@ -111,7 +109,8 @@ int main(int argc, char *argv[]) {
     MPI_Request request;
     int recv_size;
     int *recv_query = (int *) malloc(QUERY_SIZE * sizeof(int));
-    int *search_vector = (int *) malloc(((SIZE / (np - 1)) + SIZE % (np - 1)) * sizeof(int));
+    // int *search_vector = (int *) malloc((SIZE / (np - 1)) * sizeof(int));
+    int *search_vector = (int *) calloc((SIZE / (np - 1)), sizeof(int));
 
     MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &status);
     MPI_Get_count(&status, MPI_INT, &recv_size);
@@ -122,24 +121,25 @@ int main(int argc, char *argv[]) {
     int ack = ACK;
     MPI_Isend(&ack, 1, MPI_INT, status.MPI_SOURCE, ACK_MSG_TAG, comm, &request);
     printf("\n[Proc #%d] - Sent ACK msg to node %d.\n", myrank, status.MPI_SOURCE);
+    MPI_Wait(&request, &status);
+    
     fflush(stdout);
 
     // Slave `i` (1 <= i < n) receives chunk with start_index = (i - 1) * size and end_index = start + size - 1.
       // Slave `n` receives size + SIZE % n elements.
     MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &status);
     MPI_Get_count(&status, MPI_INT, &recv_size);
-    printf("\n[Proc #%d] - Receiving search_vector from %d.\n", myrank, status.MPI_SOURCE);
+    printf("\n[Proc #%d] - Receiving search_vector from %d, of size %d.\n", myrank, status.MPI_SOURCE, recv_size);
     fflush(stdout);
     MPI_Irecv(search_vector, recv_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
-    for (int i = 0; i < recv_size; i++) {
-      printf("%d", search_vector[i]);
-    }
+    MPI_Wait(&request, &status);
     printf("\n[Proc #%d] - done\n", myrank);
     fflush(stdout);
 
     // 1: Each slave sends using a blocks MPI_Send, ONLY the list of integers from the query list that
       // it finds in the chunk received from the master.
-
+    free(recv_query);
+    free(search_vector);
   }
 
   MPI_Finalize();
