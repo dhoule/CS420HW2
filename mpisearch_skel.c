@@ -54,25 +54,25 @@ int main(int argc, char *argv[]) {
     MPI_Request *send_request = (MPI_Request *) malloc((np - 1)* sizeof(MPI_Request));
     for (int i = 1; i < np; i++) {
       MPI_Isend(query_vector, QUERY_SIZE, MPI_INT, i, QUERY_MSG_TAG, comm, &send_request[i - 1]);
-      printf("\n[%d] sent query_vector to node %d.\n", myrank,i);
-      fflush(stdout);
+      // printf("\n[%d] sent query_vector to node %d.\n", myrank,i);
+      // fflush(stdout);
     }
-    printf("\nFinished sending query_vector to all nodes.\n");
-    fflush(stdout);
+    // printf("\nFinished sending query_vector to all nodes.\n");
+    // fflush(stdout);
 
     // 2: Master then issues n non-blocking receive calls and waits for an ACK msg from each slave
       // to indicate that it has received the query list using MPI_Waitall()
-    printf("\nMaster node waiting for all ACK msgs.\n");
-    fflush(stdout);
+    // printf("\nMaster node waiting for all ACK msgs.\n");
+    // fflush(stdout);
     MPI_Status *status_list = (MPI_Status *) malloc(sizeof(MPI_Status) * (np - 1));
     MPI_Waitall(np - 1, send_request, status_list);
-    printf("\nMaster node received all ACK msgs.\n");
-    fflush(stdout);
+    // printf("\nMaster node received all ACK msgs.\n");
+    // fflush(stdout);
 
     // 3: On receiving all ACKs from the slave nodes, the master then sends to each slave (using
       // non-blocking MPI_Isend) a chunk of size = SIZE/n the search array.
-    printf("\nMaster node breaking up search_array into chunks to be sent to slaves.\n");
-    fflush(stdout);
+    // printf("\nMaster node breaking up search_array into chunks to be sent to slaves.\n");
+    // fflush(stdout);
 
     int size = SIZE / (np - 1); // size of each chunk search_array will be split into, expect maybe the last
     int i, start_index, end_index;
@@ -81,23 +81,33 @@ int main(int argc, char *argv[]) {
       end_index = ((start_index + size) - 1);
       int *temp = slice_array(search_array, start_index, end_index);
       MPI_Isend(temp, size, MPI_INT, i, QUERY_MSG_TAG, comm, &send_request[i - 1]);
-      printf("\n[%d] sent search_array chunk of size %d to node %d.\n", myrank,size,i);
-      fflush(stdout);
+      // printf("\n[%d] sent search_array chunk of size %d to node %d.\n", myrank,size,i);
+      // fflush(stdout);
     }
     start_index = (i - 1) * size;
     end_index = SIZE;
     int *temp = slice_array(search_array, start_index, end_index);
     MPI_Isend(temp, (end_index - start_index), MPI_INT, i, QUERY_MSG_TAG, comm, &send_request[i - 1]);
-    printf("\n[%d] sent search_array chunk of size %d to node %d.\n", myrank,(end_index - start_index),i);
-    fflush(stdout);
+    // printf("\n[%d] sent search_array chunk of size %d to node %d.\n", myrank,(end_index - start_index),i);
+    // fflush(stdout);
 
     int *index = (int *) malloc((np - 1) * sizeof(int));
     MPI_Waitany(np - 1, send_request, index, status_list);
     free(temp);
-    printf("\nFinished sending search_array chunks to all nodes.\n");
-    fflush(stdout);
+    // printf("\nFinished sending search_array chunks to all nodes.\n");
+    // fflush(stdout);
 
-    
+    // Master now receives the results of the linear searches and displays them
+    MPI_Status status;
+    int recv_size;
+    for(i = 0; i < (np - 1); i++) {
+      MPI_Probe(MPI_ANY_SOURCE, RESULT_MSG_TAG, comm, &status);
+      MPI_Get_count(&status, MPI_INT, &recv_size);
+      int *temp = (int *) calloc(recv_size, sizeof(int));
+      MPI_Recv(temp, recv_size, MPI_INT, MPI_ANY_SOURCE, RESULT_MSG_TAG, comm, &status);
+      print_found( temp, recv_size, status.MPI_SOURCE);
+      free(temp);
+    }
 
     free(search_array);
     free(query_vector);
@@ -123,8 +133,8 @@ int main(int argc, char *argv[]) {
     // The current slave has received the quesry_vector from the master node. Need to return ACK msg.
     int ack = ACK;
     MPI_Isend(&ack, 1, MPI_INT, status.MPI_SOURCE, ACK_MSG_TAG, comm, &request);
-    printf("\n[Proc #%d] - Sent ACK msg to node %d.\n", myrank, status.MPI_SOURCE);
-    fflush(stdout);
+    // printf("\n[Proc #%d] - Sent ACK msg to node %d.\n", myrank, status.MPI_SOURCE);
+    // fflush(stdout);
     MPI_Wait(&request, &status);
     
     
@@ -133,8 +143,8 @@ int main(int argc, char *argv[]) {
       // Slave `n` receives size + SIZE % n elements.
     MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &status);
     MPI_Get_count(&status, MPI_INT, &search_size);
-    printf("\n[Proc #%d] - Receiving search_vector from %d, of size %d.\n", myrank, status.MPI_SOURCE, search_size);
-    fflush(stdout);
+    // printf("\n[Proc #%d] - Receiving search_vector from %d, of size %d.\n", myrank, status.MPI_SOURCE, search_size);
+    // fflush(stdout);
 
 
     // int *search_vector = (int *) malloc(search_size * sizeof(int));
@@ -144,11 +154,11 @@ int main(int argc, char *argv[]) {
     int found = 0;
     MPI_Irecv(search_vector, search_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
     MPI_Wait(&request, &status);
-    printf("\n[Proc #%d] - Finished receiving search_vector from %d, of size %d.\n", myrank, status.MPI_SOURCE, search_size);
-    fflush(stdout);
+    // printf("\n[Proc #%d] - Finished receiving search_vector from %d, of size %d.\n", myrank, status.MPI_SOURCE, search_size);
+    // fflush(stdout);
 
-    printf("\n[Proc #%d] - Starting linear search.\n", myrank);
-    fflush(stdout);
+    // printf("\n[Proc #%d] - Starting linear search.\n", myrank);
+    // fflush(stdout);
     // Need to search `recv_query`, for the elements in `search_vector`, via linear search.
     for(int i = 0; i < search_size; i++) {
       for(int q = 0; q < query_size; q++){
@@ -159,14 +169,14 @@ int main(int argc, char *argv[]) {
         }
       }
     }
-    printf("\n[Proc #%d] - Finished linear search. Found %d matches.\n", myrank, (found - 1));
-    fflush(stdout);
+    // printf("\n[Proc #%d] - Finished linear search. Found %d matches.\n", myrank, found);
+    // fflush(stdout);
 
     // 1: Each slave sends using a blocking MPI_Send, ONLY the list of integers from the query list that
       // it finds in the chunk received from the master.
     // Get only the elements that matter
-    // int *temp = slice_array(possible, 0, (found - 1));
-    // MPI_Send(temp, found, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm);
+    int *temp = slice_array(possible, 0, (found - 1));
+    MPI_Send(temp, found, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm);
 
     free(recv_query);
     free(search_vector);
