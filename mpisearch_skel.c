@@ -4,7 +4,7 @@ void print_found( int *data, int size, int source) {
   printf("\nFound query data items from slave %d, count = %d:\n", source, size);
 
   for (int i = 0; i < size; i++) {
-    printf("%d\n", data[i]);
+    printf("%d\t", data[i]);
   }
 
   printf("\n\n");
@@ -93,6 +93,7 @@ int main(int argc, char *argv[]) {
 
     int *index = (int *) malloc((np - 1) * sizeof(int));
     MPI_Waitany(np - 1, send_request, index, status_list);
+    free(index);
     free(temp);
     // printf("\nFinished sending search_array chunks to all nodes.\n");
     // fflush(stdout);
@@ -103,8 +104,8 @@ int main(int argc, char *argv[]) {
     for(i = 0; i < (np - 1); i++) {
       MPI_Probe(MPI_ANY_SOURCE, RESULT_MSG_TAG, comm, &status);
       MPI_Get_count(&status, MPI_INT, &recv_size);
-      int *temp = (int *) calloc(recv_size, sizeof(int));
-      MPI_Recv(temp, recv_size, MPI_INT, MPI_ANY_SOURCE, RESULT_MSG_TAG, comm, &status);
+      int *temp = (int *) malloc(recv_size * sizeof(int));
+      MPI_Recv(temp, recv_size, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm, &status);
       print_found( temp, recv_size, status.MPI_SOURCE);
       free(temp);
     }
@@ -113,7 +114,7 @@ int main(int argc, char *argv[]) {
     free(query_vector);
     free(send_request);
     free(status_list);
-    free(index);
+    
   } else {
     printf("\n[Proc #%d] - Starting to work.\n", myrank);
     fflush(stdout);
@@ -150,7 +151,7 @@ int main(int argc, char *argv[]) {
     // int *search_vector = (int *) malloc(search_size * sizeof(int));
     int *search_vector = (int *) calloc(search_size, sizeof(int));
     // The max size of possible seraches is the search array. The min, is the last 0 value minus 1.
-    int *possible = (int *) calloc(search_size, sizeof(int));
+    int *possible = (int *) malloc(search_size * sizeof(int));
     int found = 0;
     MPI_Irecv(search_vector, search_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
     MPI_Wait(&request, &status);
@@ -178,6 +179,7 @@ int main(int argc, char *argv[]) {
     int *temp = slice_array(possible, 0, (found - 1));
     MPI_Send(temp, found, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm);
 
+    free(temp);
     free(recv_query);
     free(search_vector);
     free(possible);
