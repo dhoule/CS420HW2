@@ -97,8 +97,10 @@ int main(int argc, char *argv[]) {
     printf("\nFinished sending search_array chunks to all nodes.\n");
     fflush(stdout);
 
+    
+
     free(search_array);
-    // free(query_vector);
+    free(query_vector);
     free(send_request);
     free(status_list);
     free(index);
@@ -107,39 +109,68 @@ int main(int argc, char *argv[]) {
     fflush(stdout);
     MPI_Status status;
     MPI_Request request;
-    int recv_size;
+    int query_size;
+    int search_size;
     int *recv_query = (int *) malloc(QUERY_SIZE * sizeof(int));
-    // int *search_vector = (int *) malloc((SIZE / (np - 1)) * sizeof(int));
-    int *search_vector = (int *) calloc((SIZE / (np - 1)), sizeof(int));
+    
+    
 
     MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &status);
-    MPI_Get_count(&status, MPI_INT, &recv_size);
-    MPI_Irecv(recv_query, recv_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
+    MPI_Get_count(&status, MPI_INT, &query_size);
+    MPI_Irecv(recv_query, query_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
     MPI_Wait(&request, &status);
 
     // The current slave has received the quesry_vector from the master node. Need to return ACK msg.
     int ack = ACK;
     MPI_Isend(&ack, 1, MPI_INT, status.MPI_SOURCE, ACK_MSG_TAG, comm, &request);
     printf("\n[Proc #%d] - Sent ACK msg to node %d.\n", myrank, status.MPI_SOURCE);
+    fflush(stdout);
     MPI_Wait(&request, &status);
     
-    fflush(stdout);
+    
 
     // Slave `i` (1 <= i < n) receives chunk with start_index = (i - 1) * size and end_index = start + size - 1.
       // Slave `n` receives size + SIZE % n elements.
     MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &status);
-    MPI_Get_count(&status, MPI_INT, &recv_size);
-    printf("\n[Proc #%d] - Receiving search_vector from %d, of size %d.\n", myrank, status.MPI_SOURCE, recv_size);
-    fflush(stdout);
-    MPI_Irecv(search_vector, recv_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
-    MPI_Wait(&request, &status);
-    printf("\n[Proc #%d] - done\n", myrank);
+    MPI_Get_count(&status, MPI_INT, &search_size);
+    printf("\n[Proc #%d] - Receiving search_vector from %d, of size %d.\n", myrank, status.MPI_SOURCE, search_size);
     fflush(stdout);
 
-    // 1: Each slave sends using a blocks MPI_Send, ONLY the list of integers from the query list that
+
+    // int *search_vector = (int *) malloc(search_size * sizeof(int));
+    int *search_vector = (int *) calloc(search_size, sizeof(int));
+    // The max size of possible seraches is the search array. The min, is the last 0 value minus 1.
+    int *possible = (int *) calloc(search_size, sizeof(int));
+    int found = 0;
+    MPI_Irecv(search_vector, search_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
+    MPI_Wait(&request, &status);
+    printf("\n[Proc #%d] - Finished receiving search_vector from %d, of size %d.\n", myrank, status.MPI_SOURCE, search_size);
+    fflush(stdout);
+
+    printf("\n[Proc #%d] - Starting linear search.\n", myrank);
+    fflush(stdout);
+    // Need to search `recv_query`, for the elements in `search_vector`, via linear search.
+    for(int i = 0; i < search_size; i++) {
+      for(int q = 0; q < query_size; q++){
+        if(search_vector[i] == recv_query[q]) {
+          possible[found] = recv_query[q];
+          found++;
+          break;
+        }
+      }
+    }
+    printf("\n[Proc #%d] - Finished linear search. Found %d matches.\n", myrank, (found - 1));
+    fflush(stdout);
+
+    // 1: Each slave sends using a blocking MPI_Send, ONLY the list of integers from the query list that
       // it finds in the chunk received from the master.
+    // Get only the elements that matter
+    // int *temp = slice_array(possible, 0, (found - 1));
+    // MPI_Send(temp, found, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm);
+
     free(recv_query);
     free(search_vector);
+    free(possible);
   }
 
   MPI_Finalize();
