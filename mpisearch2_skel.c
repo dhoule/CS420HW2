@@ -32,7 +32,7 @@ search_result linear_search(int* query_list, int qcount, int* data, int size) {
 }
       
 void print_found(int *data, int size, int source) {
-  printf("\nFound query data items from slave %d, count = %d:\n",source, size);
+  // printf("\nFound query data items from slave %d, count = %d:\n",source, size);
 
   for (int i = 0;i < size;i++) {
     printf("%d\t",data[i]);
@@ -70,10 +70,12 @@ int main(int argc, char *argv[]) {
     double lStarttime, dStarttime, lEndtime, dEndtime;
 
     // 1st, sequential linear search
+    lStarttime = MPI_Wtime();
     search_result linear = linear_search(query_vector, QUERY_SIZE, search_array, SIZE);
     // print_found(linear.list, linear.count, myrank);
-
-    
+    lEndtime = MPI_Wtime();
+    printf("Linear:%f\n",lEndtime-lStarttime);
+    fflush(stdout);
 
     // First broadcast search value to all slave processes
     MPI_Request *send_request = (MPI_Request *) malloc((np - 1)* sizeof(MPI_Request));
@@ -86,6 +88,8 @@ int main(int argc, char *argv[]) {
 
     int size = SIZE / (np - 1); // size of each chunk search_array will be split into, expect maybe the last
     int i, start_index, end_index;
+    // start of distributed search
+    dStarttime = MPI_Wtime();
     for (i = 1; i < (np - 1); i++) {
       start_index = (i - 1) * size;
       end_index = ((start_index + size) - 1);
@@ -112,6 +116,9 @@ int main(int argc, char *argv[]) {
       // print_found( temp, recv_size, status.MPI_SOURCE);
       free(temp);
     }
+    dEndtime = MPI_Wtime();
+    printf("Distributed:%f\n",dEndtime-dStarttime);
+    fflush(stdout);
 
     free(search_array);
     free(query_vector);
