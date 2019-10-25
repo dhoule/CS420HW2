@@ -46,10 +46,14 @@ void print_found(int *data, int size, int source) {
 int main(int argc, char *argv[]) {
   int np;     // number of processes
   int myrank;   // rank of process 
+  int error = -1000, errclass, resultlen; // used to retrieve any MPI status codes and messages
 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(comm, &np);
   MPI_Comm_rank(comm, &myrank);
+  // Install a new error handler
+  MPI_Comm_set_errhandler(comm,MPI_ERRORS_RETURN); // return info about errors
+  char err_buffer[ERR_BUF_SIZE];
   // printf("\nNo. of procs = %d, proc ID = %d initialized...", np, myrank);
 
   if (0 == myrank) {
@@ -108,17 +112,27 @@ int main(int argc, char *argv[]) {
 
     MPI_Status status;
     int recv_size;
-    for(i = 0; i < (np - 1); i++) {
+    for(i = 0; i < np; i++) {
       MPI_Probe(MPI_ANY_SOURCE, RESULT_MSG_TAG, comm, &status);
       MPI_Get_count(&status, MPI_INT, &recv_size);
       int *temp = (int *) calloc(recv_size, sizeof(int));
-      MPI_Recv(temp, recv_size, MPI_INT, MPI_ANY_SOURCE, RESULT_MSG_TAG, comm, &status);
+      error = MPI_Recv(temp, recv_size, MPI_INT, MPI_ANY_SOURCE, RESULT_MSG_TAG, comm, &status);
+      if(error != MPI_SUCCESS){
+        MPI_Error_class(error,&errclass);
+        MPI_Error_string(error,err_buffer,&resultlen);
+        fprintf(stderr,err_buffer);
+        fflush(stderr);
+        free(temp);
+        exit(errclass);
+      }
       // print_found( temp, recv_size, status.MPI_SOURCE);
       free(temp);
     }
-    dEndtime = MPI_Wtime();
-    printf("Distributed:%f\n",dEndtime-dStarttime);
-    fflush(stdout);
+    if(error == MPI_SUCCESS){
+      dEndtime = MPI_Wtime();
+      printf("Distributed:%f\n",dEndtime-dStarttime);
+      fflush(stdout);
+    }
 
     free(search_array);
     free(query_vector);
@@ -171,7 +185,18 @@ int main(int argc, char *argv[]) {
       // it finds in the chunk received from the master.
     // Get only the elements that matter
     int *temp = slice_array(possible, 0, (found - 1));
-    MPI_Send(temp, found, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm);
+    error = MPI_Send(temp, found, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm);
+    if(error != MPI_SUCCESS){
+      MPI_Error_class(error,&errclass);
+      MPI_Error_string(error,err_buffer,&resultlen);
+      fprintf(stderr,err_buffer);
+      fflush(stderr);
+      free(temp);
+      free(recv_query);
+      free(search_vector);
+      free(possible); 
+      exit(errclass);
+    }
 
     free(temp);
     free(recv_query);

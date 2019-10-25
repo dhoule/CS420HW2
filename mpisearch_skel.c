@@ -26,16 +26,20 @@ int *slice_array(int *dirty, int start, int end) {
 int main(int argc, char *argv[]) {
   int np; // number of processes
   int myrank; //rank of process
+  int error = -1000, errclass, resultlen; // used to retrieve any MPI status codes and messages
 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(comm, &np);
   MPI_Comm_rank(comm, &myrank);
+  // Install a new error handler
+  MPI_Comm_set_errhandler(comm,MPI_ERRORS_RETURN); // return info about errors
+  char err_buffer[ERR_BUF_SIZE];
   printf("\nNo. of procs = %d, proc ID = %d initialized...", np, myrank);
 
   if (0 == myrank) {
     // Create an array of random integers for test purpose
     // int *search_array = (int *) malloc(SIZE * sizeof(int));
-    int *search_array = (int *) calloc(SIZE, sizeof(int));
+    int *search_array = (int *) malloc(SIZE, sizeof(int));
     for (int i = 0; i < SIZE; i++) {
       search_array[i] = OFFSET + rand() % RANGE;
     }
@@ -43,7 +47,7 @@ int main(int argc, char *argv[]) {
 
     //Now create an array of search queries
     // int *query_vector = (int *) malloc(QUERY_SIZE * sizeof(int));
-    int *query_vector = (int *) calloc(QUERY_SIZE, sizeof(int));
+    int *query_vector = (int *) malloc(QUERY_SIZE, sizeof(int));
     for (int i = 0; i < QUERY_SIZE; i++) {
       query_vector[i] = OFFSET + rand() % RANGE;
     }
@@ -101,11 +105,19 @@ int main(int argc, char *argv[]) {
     // Master now receives the results of the linear searches and displays them
     MPI_Status status;
     int recv_size;
-    for(i = 0; i < (np - 1); i++) {
+    for(i = 1; i < np; i++) {
       MPI_Probe(MPI_ANY_SOURCE, RESULT_MSG_TAG, comm, &status);
       MPI_Get_count(&status, MPI_INT, &recv_size);
       int *temp = (int *) malloc(recv_size * sizeof(int));
-      MPI_Recv(temp, recv_size, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm, &status);
+      error = MPI_Recv(temp, recv_size, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm, &status);
+      if(error != MPI_SUCCESS){
+        MPI_Error_class(error,&errclass);
+        MPI_Error_string(error,err_buffer,&resultlen);
+        fprintf(stderr,err_buffer);
+        fflush(stderr);
+        free(temp);
+        exit(errclass);
+      }
       print_found( temp, recv_size, status.MPI_SOURCE);
       free(temp);
     }
@@ -177,8 +189,19 @@ int main(int argc, char *argv[]) {
       // it finds in the chunk received from the master.
     // Get only the elements that matter
     int *temp = slice_array(possible, 0, (found - 1));
-    MPI_Send(temp, found, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm);
-
+    error = MPI_Send(temp, found, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm);
+    if(error != MPI_SUCCESS){
+      MPI_Error_class(error,&errclass);
+      MPI_Error_string(error,err_buffer,&resultlen);
+      fprintf(stderr,err_buffer);
+      fflush(stderr);
+      free(temp);
+      free(recv_query);
+      free(search_vector);
+      free(possible); 
+      exit(errclass);
+    }
+    
     free(temp);
     free(recv_query);
     free(search_vector);
