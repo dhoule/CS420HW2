@@ -38,16 +38,14 @@ int main(int argc, char *argv[]) {
 
   if (0 == myrank) {
     // Create an array of random integers for test purpose
-    // int *search_array = (int *) malloc(SIZE * sizeof(int));
-    int *search_array = (int *) malloc(SIZE, sizeof(int));
+    int *search_array = (int *) malloc(SIZE * sizeof(int));
     for (int i = 0; i < SIZE; i++) {
       search_array[i] = OFFSET + rand() % RANGE;
     }
     fflush(stdout);
 
     //Now create an array of search queries
-    // int *query_vector = (int *) malloc(QUERY_SIZE * sizeof(int));
-    int *query_vector = (int *) malloc(QUERY_SIZE, sizeof(int));
+    int *query_vector = (int *) malloc(QUERY_SIZE * sizeof(int));
     for (int i = 0; i < QUERY_SIZE; i++) {
       query_vector[i] = OFFSET + rand() % RANGE;
     }
@@ -116,6 +114,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr,err_buffer);
         fflush(stderr);
         free(temp);
+        MPI_Finalize();
         exit(errclass);
       }
       print_found( temp, recv_size, status.MPI_SOURCE);
@@ -199,6 +198,7 @@ int main(int argc, char *argv[]) {
       free(recv_query);
       free(search_vector);
       free(possible); 
+      MPI_Finalize();
       exit(errclass);
     }
     

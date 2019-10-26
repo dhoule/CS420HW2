@@ -73,19 +73,11 @@ int main(int argc, char *argv[]) {
     // variables used for keeping track of elapsed time for linear and distributed searches...
     double lStarttime, dStarttime, lEndtime, dEndtime;
 
-    // 1st, sequential linear search
-    lStarttime = MPI_Wtime();
-    search_result linear = linear_search(query_vector, QUERY_SIZE, search_array, SIZE);
-    // print_found(linear.list, linear.count, myrank);
-    lEndtime = MPI_Wtime();
-    printf("Linear:%f\n",lEndtime-lStarttime);
-    fflush(stdout);
-
     // First broadcast search value to all slave processes
     MPI_Request *send_request = (MPI_Request *) malloc((np - 1)* sizeof(MPI_Request));
-    for (int i = 1; i < np; i++) {
+    for (int i = 1; i < np; i++) 
       MPI_Isend(query_vector, QUERY_SIZE, MPI_INT, i, QUERY_MSG_TAG, comm, &send_request[i - 1]);
-    }
+    
 
     MPI_Status *status_list = (MPI_Status *) malloc(sizeof(MPI_Status) * (np - 1));
     MPI_Waitall(np - 1, send_request, status_list);
@@ -112,7 +104,7 @@ int main(int argc, char *argv[]) {
 
     MPI_Status status;
     int recv_size;
-    for(i = 0; i < np; i++) {
+    for(i = 1; i < np; i++) {
       MPI_Probe(MPI_ANY_SOURCE, RESULT_MSG_TAG, comm, &status);
       MPI_Get_count(&status, MPI_INT, &recv_size);
       int *temp = (int *) calloc(recv_size, sizeof(int));
@@ -123,6 +115,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr,err_buffer);
         fflush(stderr);
         free(temp);
+        MPI_Finalize();
         exit(errclass);
       }
       // print_found( temp, recv_size, status.MPI_SOURCE);
@@ -134,13 +127,23 @@ int main(int argc, char *argv[]) {
       fflush(stdout);
     }
 
-    free(search_array);
-    free(query_vector);
     free(send_request);
     free(status_list); 
+
+    // 1st, sequential linear search
+    lStarttime = MPI_Wtime();
+    search_result linear = linear_search(query_vector, QUERY_SIZE, search_array, SIZE);
+    // print_found(linear.list, linear.count, myrank);
+    lEndtime = MPI_Wtime();
+    printf("Sequential:%f\n",lEndtime-lStarttime);
+    fflush(stdout);
+
+    free(search_array);
+    free(query_vector);
+    
   } else { 
     // printf("\n[Proc #%d] - Starting to work.\n", myrank);
-    // fflush(stdout);
+    fflush(stdout);
     MPI_Status status;
     MPI_Request request;
     int query_size;
@@ -186,6 +189,7 @@ int main(int argc, char *argv[]) {
     // Get only the elements that matter
     int *temp = slice_array(possible, 0, (found - 1));
     error = MPI_Send(temp, found, MPI_INT, status.MPI_SOURCE, RESULT_MSG_TAG, comm);
+
     if(error != MPI_SUCCESS){
       MPI_Error_class(error,&errclass);
       MPI_Error_string(error,err_buffer,&resultlen);
@@ -195,6 +199,7 @@ int main(int argc, char *argv[]) {
       free(recv_query);
       free(search_vector);
       free(possible); 
+      MPI_Finalize();
       exit(errclass);
     }
 
