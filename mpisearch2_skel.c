@@ -23,6 +23,7 @@ int recv_local_copy(int size, int source, MPI_Status status) {
   int *temp = (int *) calloc(size, sizeof(int));
   int error;
   // NOTE: do not use MPI_ANY_SOURCE while in a loop for MPI_Recv
+    // Async programming creates race conditions
   error = MPI_Recv(temp, size, MPI_INT, source, RESULT_MSG_TAG, comm, &status);
   // if(error == MPI_SUCCESS)
   //   print_found( temp, size, source);
@@ -256,7 +257,7 @@ int main(int argc, char *argv[]) {
     // The max size of possible seraches is the search array. The min, is the last 0 value minus 1.
     int *possible = (int *) malloc(search_size * sizeof(int));
     int found = 0;
-    error = MPI_Irecv(search_vector, search_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
+    error = MPI_Irecv(search_vector, search_size, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, comm, &request);
     if(error != MPI_SUCCESS){
       free(recv_query);
       free(search_vector);
