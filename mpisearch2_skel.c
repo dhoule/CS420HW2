@@ -1,3 +1,9 @@
+/*
+  Houle, Daniel B.
+  CS420 Fall 2019
+  HW2
+*/
+
 #include "mpisearch.h"
 
 /*
