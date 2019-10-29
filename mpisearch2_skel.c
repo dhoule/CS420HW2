@@ -25,7 +25,7 @@ int recv_local_copy(int size, int source, MPI_Status status) {
   // NOTE: do not use MPI_ANY_SOURCE while in a loop for MPI_Recv
   error = MPI_Recv(temp, size, MPI_INT, source, RESULT_MSG_TAG, comm, &status);
   // if(error == MPI_SUCCESS)
-  //   print_found( temp, size, status.MPI_SOURCE);
+  //   print_found( temp, size, source);
 
   return error;
 }
@@ -76,7 +76,6 @@ int main(int argc, char *argv[]) {
   // printf("\nNo. of procs = %d, proc ID = %d initialized...", np, myrank);
 
   if (0 == myrank) {
-    
     // Create an array of random integers for test purpose
     int *search_array = (int *) malloc(SIZE * sizeof(int));
     for (int i = 0;i < SIZE;i++) {
@@ -98,6 +97,9 @@ int main(int argc, char *argv[]) {
     for (int i = 1; i < np; i++) {
       error = MPI_Isend(query_vector, QUERY_SIZE, MPI_INT, i, QUERY_MSG_TAG, comm, &send_request[i - 1]);
       if(error != MPI_SUCCESS){
+        free(send_request);
+        free(search_array);
+        free(query_vector);
         MPI_Error_class(error,&errclass);
         MPI_Error_string(error,err_buffer,&resultlen);
         fprintf(stdout,err_buffer);
@@ -117,9 +119,12 @@ int main(int argc, char *argv[]) {
     for (i = 1; i < (np - 1); i++) {
       start_index = (i - 1) * size;
       end_index = ((start_index + size) - 1);
-      // int *temp = slice_array(search_array, start_index, end_index);
       error = send_local_copy(slice_array(search_array, start_index, end_index), size, i, send_request[i - 1]);
       if(error != MPI_SUCCESS){
+        free(send_request);
+        free(status_list); 
+        free(search_array);
+        free(query_vector);
         MPI_Error_class(error,&errclass);
         MPI_Error_string(error,err_buffer,&resultlen);
         fprintf(stdout,err_buffer);
@@ -130,9 +135,12 @@ int main(int argc, char *argv[]) {
     }
     start_index = (i - 1) * size;
     end_index = SIZE;
-    // int *temp = slice_array(search_array, start_index, end_index);
     error = send_local_copy(slice_array(search_array, start_index, end_index), (end_index - start_index), i, send_request[i - 1]);
     if(error != MPI_SUCCESS){
+      free(send_request);
+      free(status_list); 
+      free(search_array);
+      free(query_vector);
       MPI_Error_class(error,&errclass);
       MPI_Error_string(error,err_buffer,&resultlen);
       fprintf(stdout,err_buffer);
@@ -147,6 +155,11 @@ int main(int argc, char *argv[]) {
     while(i < np) {  
       error = MPI_Waitany(np - 1, send_request, index, status_list);
       if(error != MPI_SUCCESS){
+        free(index);
+        free(send_request);
+        free(status_list); 
+        free(search_array);
+        free(query_vector);
         MPI_Error_class(error,&errclass);
         MPI_Error_string(error,err_buffer,&resultlen);
         fprintf(stdout,err_buffer);
@@ -157,7 +170,6 @@ int main(int argc, char *argv[]) {
       i++;
     }
     free(index);
-    // free(temp);
     
     MPI_Status status;
     int recv_size;
@@ -166,6 +178,10 @@ int main(int argc, char *argv[]) {
       MPI_Get_count(&status, MPI_INT, &recv_size);
       error = recv_local_copy(recv_size, status.MPI_SOURCE, status);
       if(error != MPI_SUCCESS){
+        free(send_request);
+        free(status_list); 
+        free(search_array);
+        free(query_vector);
         MPI_Error_class(error,&errclass);
         MPI_Error_string(error,err_buffer,&resultlen);
         fprintf(stdout,err_buffer);
@@ -195,7 +211,7 @@ int main(int argc, char *argv[]) {
     
   } else { 
     // printf("\n[Proc #%d] - Starting to work.\n", myrank);
-    fflush(stdout);
+    // fflush(stdout);
     MPI_Status status;
     MPI_Request request;
     int query_size;
@@ -206,6 +222,7 @@ int main(int argc, char *argv[]) {
     MPI_Get_count(&status, MPI_INT, &query_size);
     error = MPI_Irecv(recv_query, query_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
     if(error != MPI_SUCCESS){
+      free(recv_query);
       MPI_Error_class(error,&errclass);
       MPI_Error_string(error,err_buffer,&resultlen);
       fprintf(stdout,err_buffer);
@@ -219,6 +236,7 @@ int main(int argc, char *argv[]) {
     int ack = ACK;
     error = MPI_Isend(&ack, 1, MPI_INT, status.MPI_SOURCE, ACK_MSG_TAG, comm, &request);
     if(error != MPI_SUCCESS){
+      free(recv_query);
       MPI_Error_class(error,&errclass);
       MPI_Error_string(error,err_buffer,&resultlen);
       fprintf(stdout,err_buffer);
@@ -240,6 +258,9 @@ int main(int argc, char *argv[]) {
     int found = 0;
     error = MPI_Irecv(search_vector, search_size, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &request);
     if(error != MPI_SUCCESS){
+      free(recv_query);
+      free(search_vector);
+      free(possible);
       MPI_Error_class(error,&errclass);
       MPI_Error_string(error,err_buffer,&resultlen);
       fprintf(stdout,err_buffer);
