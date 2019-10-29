@@ -57,6 +57,7 @@ for key in sorted(nodes.keys()):
   l = [] # sequential search time
   d = [] # distributed search time
   s = [] # speed up value
+  # print(key)
   for q in current:
     # need to convert to appropriate number values to use them
     runs.append(int(q[0]))
@@ -64,6 +65,9 @@ for key in sorted(nodes.keys()):
     l.append(temp[0])
     d.append(temp[1])
     s.append(temp[0]/temp[1])
+    # print("run:%d\tseq:%f\tdis:%f\tsu:%f"%(int(q[0]),temp[0],temp[1],temp[0]/temp[1]))
+
+  # print("\n\n")
   # add the position of the next subplot
   t = tots.add_subplot(gs[i])
   i = i + 1
@@ -84,6 +88,10 @@ custom_lines = [Line2D([0], [0], color='b', lw=4),
                 Line2D([0], [0], color='y', lw=4),
                 Line2D([0], [0], color='r', lw=4)]
 # Adding the subplot for the average speed up values
+# print("Avg Speed Up")
+# for key in sorted(avg.keys()):
+#   print("node:%d\tasu:%f"%(key,avg[key]))
+  
 t = tots.add_subplot(gs[i])
 t.plot(avg.keys(),avg.values(), color='r')
 t.title.set_text('AVG Speed Up')
